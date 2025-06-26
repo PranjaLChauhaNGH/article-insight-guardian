@@ -1,24 +1,644 @@
+
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>article-insight-guardian</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Article Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
 
-    <meta property="og:title" content="article-insight-guardian" />
-    <meta property="og:description" content="Lovable Generated Project" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+        // Configure Tailwind
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">News Article Analyzer</h1>
+            <p class="text-lg text-gray-600">AI-powered news summarization and credibility analysis</p>
+            <div id="userInfo" class="mt-2 text-sm text-gray-500"></div>
+        </div>
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
+        <!-- API Key Warning -->
+        <div id="apiWarning" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 hidden">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">API Keys Required</h3>
+                    <p class="mt-2 text-sm text-red-700">Please replace the placeholder API keys in the code with your actual keys from Google AI Studio and Google Custom Search.</p>
+                </div>
+            </div>
+        </div>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Input Section -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Article Input</h2>
+                    <textarea 
+                        id="articleInput" 
+                        class="w-full h-64 p-4 border border-gray-300 rounded-lg resize-y focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Paste your news article text here or describe the content of a news article screenshot..."
+                    ></textarea>
+                    <div class="mt-4 flex gap-4">
+                        <button 
+                            id="analyzeBtn" 
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center"
+                        >
+                            Analyze Article
+                        </button>
+                        <button 
+                            id="clearHistoryBtn" 
+                            class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg transition duration-200"
+                        >
+                            Clear History
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="mt-8 space-y-6 hidden">
+                    <!-- Summary -->
+                    <div class="bg-white rounded-lg shadow-md p-6 fade-in">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Generated News Summary</h3>
+                        <div id="summaryContent" class="text-gray-700 leading-relaxed"></div>
+                    </div>
+
+                    <!-- Credibility Assessment -->
+                    <div class="bg-white rounded-lg shadow-md p-6 fade-in">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Credibility Assessment</h3>
+                        <div id="credibilityStatus" class="mb-3"></div>
+                        <div id="credibilityReasoning" class="text-gray-700 leading-relaxed"></div>
+                    </div>
+
+                    <!-- Cross-Verification Sources -->
+                    <div class="bg-white rounded-lg shadow-md p-6 fade-in">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Additional Sources for Cross-Verification</h3>
+                        <div id="verificationSources"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Analysis History</h2>
+                    <div id="historyList" class="space-y-3">
+                        <p class="text-gray-500 text-sm">No analyses yet. Start by analyzing an article!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "demo-key",
+            authDomain: "demo-project.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Global variables
+        let currentUser = null;
+        const appId = 'news-analyzer-app';
+
+        // API Keys - REPLACE WITH YOUR ACTUAL KEYS
+        const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
+        const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY_HERE';
+        const GOOGLE_CSE_ID = 'YOUR_PROGRAMMABLE_SEARCH_ENGINE_ID_HERE';
+
+        // Check for placeholder API keys
+        function checkAPIKeys() {
+            const hasPlaceholders = GEMINI_API_KEY.includes('YOUR_') || 
+                                  GOOGLE_API_KEY.includes('YOUR_') || 
+                                  GOOGLE_CSE_ID.includes('YOUR_');
+            
+            if (hasPlaceholders) {
+                document.getElementById('apiWarning').classList.remove('hidden');
+            }
+            return !hasPlaceholders;
+        }
+
+        // Initialize authentication
+        async function initAuth() {
+            try {
+                const userCredential = await signInAnonymously(auth);
+                currentUser = userCredential.user;
+                document.getElementById('userInfo').textContent = `User ID: ${currentUser.uid}`;
+                loadHistory();
+            } catch (error) {
+                console.error('Authentication failed:', error);
+                document.getElementById('userInfo').textContent = 'Authentication failed';
+            }
+        }
+
+        // Python analysis function
+        async function analyzeArticle(articleText) {
+            const pythonCode = `
+# API Keys - REPLACE WITH YOUR ACTUAL KEYS
+GEMINI_API_KEY = "${GEMINI_API_KEY}"  # Replace with your actual Gemini API key
+GOOGLE_API_KEY = "${GOOGLE_API_KEY}"  # Replace with your actual Google API key
+GOOGLE_CSE_ID = "${GOOGLE_CSE_ID}"    # Replace with your actual Search Engine ID
+
+import json
+import requests
+import re
+from datetime import datetime
+
+# Input article text
+article_text = """${articleText.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
+
+def bart_summarize(text):
+    """Simulate BART summarization - in production, use actual BART model"""
+    # This is a simplified simulation of BART processing
+    sentences = text.split('.')[:5]  # Take first 5 sentences as basic summary
+    preliminary_summary = '. '.join(sentences).strip()
+    if preliminary_summary and not preliminary_summary.endswith('.'):
+        preliminary_summary += '.'
+    return preliminary_summary
+
+def bart_analyze_credibility(text):
+    """Simulate BART credibility analysis"""
+    analysis = {
+        'tone': 'neutral' if 'objective' in text.lower() else 'subjective',
+        'sources_mentioned': len(re.findall(r'according to|reports|sources?|officials?', text.lower())),
+        'emotional_language': len(re.findall(r'shocking|amazing|incredible|devastating|outrageous', text.lower())),
+        'factual_claims': len(re.findall(r'\\d+%|\\d+,\\d+|statistics|data|study|research', text.lower()))
+    }
+    return analysis
+
+def gemini_refine_summary(original_text, bart_summary):
+    """Use Gemini to refine BART's summary"""
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    
+    prompt = f"""Please create a concise, accurate summary of the following news article. Consider both the original article and the preliminary summary:
+
+Original Article: {original_text[:1000]}...
+
+Preliminary Summary: {bart_summary}
+
+Provide a refined, clear summary in 2-3 sentences that captures the key information."""
+
+    data = {
+        'contents': [{
+            'parts': [{'text': prompt}]
+        }],
+        'generationConfig': {
+            'temperature': 0.3,
+            'maxOutputTokens': 200
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}',
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result and result['candidates']:
+                return result['candidates'][0]['content']['parts'][0]['text'].strip()
+        return bart_summary
+    except Exception as e:
+        print(f"Gemini summary error: {e}")
+        return bart_summary
+
+def gemini_assess_credibility(original_text, bart_analysis, final_summary):
+    """Use Gemini to assess credibility"""
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    
+    prompt = f"""Analyze the credibility of this news article and provide your assessment in JSON format.
+
+Article Summary: {final_summary}
+BART Analysis: {json.dumps(bart_analysis)}
+
+Consider factors like:
+- Factual accuracy and verifiable claims
+- Bias and objectivity
+- Use of reliable sources
+- Sensationalism vs. factual reporting
+- Logical consistency
+
+Respond with valid JSON only:
+{{
+    "isCredible": true/false,
+    "reasoning": "detailed explanation of your assessment"
+}}"""
+
+    data = {
+        'contents': [{
+            'parts': [{'text': prompt}]
+        }],
+        'generationConfig': {
+            'temperature': 0.2,
+            'maxOutputTokens': 300
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}',
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result and result['candidates']:
+                content = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                # Extract JSON from the response
+                json_match = re.search(r'\\{.*\\}', content, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+        
+        return {
+            "isCredible": True,
+            "reasoning": "Unable to complete credibility assessment due to API limitations."
+        }
+    except Exception as e:
+        print(f"Gemini credibility error: {e}")
+        return {
+            "isCredible": True,
+            "reasoning": "Unable to complete credibility assessment due to technical issues."
+        }
+
+def generate_search_title(summary):
+    """Generate a concise title for search using Gemini"""
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    
+    prompt = f"""Create a concise, impactful news title (maximum 15 words) from this summary for search purposes:
+
+Summary: {summary}
+
+Respond with only the title, no quotes or additional text."""
+
+    data = {
+        'contents': [{
+            'parts': [{'text': prompt}]
+        }],
+        'generationConfig': {
+            'temperature': 0.3,
+            'maxOutputTokens': 50
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}',
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result and result['candidates']:
+                title = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                # Remove quotes if present
+                title = title.strip('"').strip("'")
+                return title
+        
+        # Fallback: create title from first few words of summary
+        words = summary.split()[:10]
+        return ' '.join(words)
+    except Exception as e:
+        print(f"Title generation error: {e}")
+        words = summary.split()[:10]
+        return ' '.join(words)
+
+def search_verification_sources(search_title):
+    """Search for verification sources using Google Custom Search"""
+    try:
+        # First attempt: exact search
+        exact_query = f'"{search_title}" news'
+        url = f'https://www.googleapis.com/customsearch/v1?key={GOOGLE_API_KEY}&cx={GOOGLE_CSE_ID}&q={exact_query}&num=5'
+        
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'items' in data and len(data['items']) > 0:
+                return data['items']
+        
+        # Second attempt: broader search
+        broad_query = f'{search_title} news'
+        url = f'https://www.googleapis.com/customsearch/v1?key={GOOGLE_API_KEY}&cx={GOOGLE_CSE_ID}&q={broad_query}&num=5'
+        
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'items' in data:
+                return data['items']
+        
+        return []
+    except Exception as e:
+        print(f"Search error: {e}")
+        return []
+
+# Main analysis process
+if not article_text.strip():
+    result = {"error": "Please provide article text to analyze."}
+else:
+    try:
+        # Step 1: BART preliminary summary
+        bart_summary = bart_summarize(article_text)
+        
+        # Step 2: Gemini refined summary
+        final_summary = gemini_refine_summary(article_text, bart_summary)
+        
+        # Step 3: BART credibility analysis
+        bart_credibility = bart_analyze_credibility(article_text)
+        
+        # Step 4: Gemini credibility assessment
+        credibility_assessment = gemini_assess_credibility(article_text, bart_credibility, final_summary)
+        
+        # Step 5: Generate search title
+        search_title = generate_search_title(final_summary)
+        
+        # Step 6: Search for verification sources
+        verification_sources = search_verification_sources(search_title)
+        
+        result = {
+            "summary": final_summary,
+            "credibility": credibility_assessment,
+            "verification_sources": verification_sources,
+            "search_title": search_title
+        }
+    except Exception as e:
+        result = {"error": f"Analysis failed: {str(e)}"}
+
+print(json.dumps(result, indent=2))
+`;
+
+            try {
+                const response = await __run_code(pythonCode, 'python');
+                return JSON.parse(response);
+            } catch (error) {
+                console.error('Python execution error:', error);
+                return { error: 'Analysis failed. Please check your API keys and try again.' };
+            }
+        }
+
+        // Save analysis to Firestore
+        async function saveAnalysis(articleText, summary, credibility, verificationSources) {
+            if (!currentUser) return;
+
+            try {
+                const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'analyses_history'), {
+                    articleText: articleText,
+                    summary: summary,
+                    credibility: credibility,
+                    verificationSources: verificationSources,
+                    timestamp: serverTimestamp()
+                });
+                console.log('Analysis saved with ID: ', docRef.id);
+                loadHistory();
+            } catch (error) {
+                console.error('Error saving analysis: ', error);
+            }
+        }
+
+        // Load history from Firestore
+        async function loadHistory() {
+            if (!currentUser) return;
+
+            try {
+                const q = query(
+                    collection(db, 'artifacts', appId, 'users', currentUser.uid, 'analyses_history'),
+                    orderBy('timestamp', 'desc')
+                );
+                const querySnapshot = await getDocs(q);
+                
+                const historyList = document.getElementById('historyList');
+                
+                if (querySnapshot.empty) {
+                    historyList.innerHTML = '<p class="text-gray-500 text-sm">No analyses yet. Start by analyzing an article!</p>';
+                    return;
+                }
+
+                let historyHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const preview = data.articleText.substring(0, 100) + '...';
+                    const date = data.timestamp ? data.timestamp.toDate().toLocaleDateString() : 'Unknown date';
+                    
+                    historyHTML += `
+                        <div class="border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition duration-200" 
+                             onclick="loadHistoryItem('${doc.id}', \`${data.articleText.replace(/`/g, '\\`')}\`, \`${data.summary.replace(/`/g, '\\`')}\`, '${JSON.stringify(data.credibility).replace(/'/g, "\\'")}', '${JSON.stringify(data.verificationSources || []).replace(/'/g, "\\'")}')">
+                            <div class="text-sm font-medium text-gray-900 mb-1">${date}</div>
+                            <div class="text-xs text-gray-600">${preview}</div>
+                        </div>
+                    `;
+                });
+                
+                historyList.innerHTML = historyHTML;
+            } catch (error) {
+                console.error('Error loading history: ', error);
+            }
+        }
+
+        // Load history item
+        window.loadHistoryItem = function(docId, articleText, summary, credibilityStr, verificationSourcesStr) {
+            try {
+                const credibility = JSON.parse(credibilityStr);
+                const verificationSources = JSON.parse(verificationSourcesStr);
+                
+                // Load article text into input
+                document.getElementById('articleInput').value = articleText;
+                
+                // Display results
+                displayResults(summary, credibility, verificationSources);
+            } catch (error) {
+                console.error('Error loading history item:', error);
+            }
+        };
+
+        // Clear history
+        async function clearHistory() {
+            if (!currentUser) return;
+            
+            if (!confirm('Are you sure you want to clear all analysis history?')) return;
+
+            try {
+                const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'analyses_history'));
+                const querySnapshot = await getDocs(q);
+                
+                const deletePromises = [];
+                querySnapshot.forEach((document) => {
+                    deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'analyses_history', document.id)));
+                });
+                
+                await Promise.all(deletePromises);
+                loadHistory();
+            } catch (error) {
+                console.error('Error clearing history: ', error);
+                alert('Failed to clear history. Please try again.');
+            }
+        }
+
+        // Display results
+        function displayResults(summary, credibility, verificationSources) {
+            const resultsSection = document.getElementById('resultsSection');
+            
+            // Summary
+            document.getElementById('summaryContent').textContent = summary;
+            
+            // Credibility
+            const statusElement = document.getElementById('credibilityStatus');
+            const isCredible = credibility.isCredible;
+            statusElement.innerHTML = `
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    isCredible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }">
+                    ${isCredible ? '✓ Credible' : '⚠ Potentially Misleading/False'}
+                </span>
+            `;
+            
+            document.getElementById('credibilityReasoning').textContent = credibility.reasoning;
+            
+            // Verification sources
+            const sourcesElement = document.getElementById('verificationSources');
+            if (verificationSources && verificationSources.length > 0) {
+                let sourcesHTML = '<div class="space-y-4">';
+                verificationSources.slice(0, 5).forEach(source => {
+                    sourcesHTML += `
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-medium text-blue-600 hover:text-blue-800">
+                                <a href="${source.link}" target="_blank" rel="noopener noreferrer">${source.title}</a>
+                            </h4>
+                            <p class="text-sm text-gray-600 mt-1">${source.snippet}</p>
+                            <p class="text-xs text-gray-400 mt-2">${source.displayLink}</p>
+                        </div>
+                    `;
+                });
+                sourcesHTML += '</div>';
+                sourcesElement.innerHTML = sourcesHTML;
+            } else {
+                sourcesElement.innerHTML = '<p class="text-gray-500 text-sm">No additional sources found for cross-verification.</p>';
+            }
+            
+            resultsSection.classList.remove('hidden');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Event listeners
+        document.getElementById('analyzeBtn').addEventListener('click', async function() {
+            const articleText = document.getElementById('articleInput').value.trim();
+            
+            if (!articleText) {
+                alert('Please enter some article text to analyze.');
+                return;
+            }
+
+            if (!checkAPIKeys()) {
+                alert('Please replace the placeholder API keys with your actual keys.');
+                return;
+            }
+
+            const button = this;
+            const originalText = button.textContent;
+            
+            // Show loading state
+            button.innerHTML = '<div class="spinner"></div>Analyzing...';
+            button.disabled = true;
+            
+            try {
+                const result = await analyzeArticle(articleText);
+                
+                if (result.error) {
+                    alert(result.error);
+                    return;
+                }
+                
+                // Display results
+                displayResults(result.summary, result.credibility, result.verification_sources);
+                
+                // Save to history
+                await saveAnalysis(articleText, result.summary, result.credibility, result.verification_sources);
+                
+            } catch (error) {
+                console.error('Analysis error:', error);
+                alert('Analysis failed. Please try again.');
+            } finally {
+                // Reset button
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        });
+
+        document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
+
+        // Initialize the app
+        checkAPIKeys();
+        initAuth();
+    </script>
+</body>
 </html>
