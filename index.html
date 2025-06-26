@@ -160,9 +160,9 @@
         const appId = 'news-analyzer-app';
 
         // API Keys - REPLACE WITH YOUR ACTUAL KEYS
-        const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
-        const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY_HERE';
-        const GOOGLE_CSE_ID = 'YOUR_PROGRAMMABLE_SEARCH_ENGINE_ID_HERE';
+        const GEMINI_API_KEY = 'AIzaSyDxuTGB0DJiYl83zLOZt9nwaiSxYtEeZnQ';
+        const GOOGLE_API_KEY = 'AIzaSyAZXYXWvmfz9QTVVjQMab3SbfAwJLVRepU';
+        const GOOGLE_CSE_ID = '658ac532df3b84951';
 
         // Check for placeholder API keys
         function checkAPIKeys() {
@@ -193,9 +193,9 @@
         async function analyzeArticle(articleText) {
             const pythonCode = `
 # API Keys - REPLACE WITH YOUR ACTUAL KEYS
-GEMINI_API_KEY = "${GEMINI_API_KEY}"  # Replace with your actual Gemini API key
-GOOGLE_API_KEY = "${GOOGLE_API_KEY}"  # Replace with your actual Google API key
-GOOGLE_CSE_ID = "${GOOGLE_CSE_ID}"    # Replace with your actual Search Engine ID
+GEMINI_API_KEY = "${AIzaSyDxuTGB0DJiYl83zLOZt9nwaiSxYtEeZnQ}"  # Replace with your actual Gemini API key
+GOOGLE_API_KEY = "${AIzaSyAZXYXWvmfz9QTVVjQMab3SbfAwJLVRepU}"  # Replace with your actual Google API key
+GOOGLE_CSE_ID = "$658ac532df3b84951"    # Replace with your actual Search Engine ID
 
 import json
 import requests
